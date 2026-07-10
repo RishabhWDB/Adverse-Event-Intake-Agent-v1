@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Adverse Event Intake Agent</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #fafafa; color: #222; }
+        h1 { font-size: 20px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+        th { background: #111; color: white; font-weight: 500; }
+        tr.case-row { cursor: pointer; }
+        tr.case-row:hover { background: #f5f5f5; }
+        .badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .life { background: #fcebeb; color: #791f1f; }
+        .serious { background: #faeeda; color: #633806; }
+        .non { background: #eaf3de; color: #27500a; }
+        select { padding: 4px 8px; font-size: 12px; }
+
+        .overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 10;
+        }
+        .overlay.active { display: flex; }
+        .modal {
+            background: white; padding: 30px; border-radius: 8px; max-width: 600px; width: 90%;
+            max-height: 80vh; overflow-y: auto;
+        }
+        .modal h2 { font-size: 18px; margin-bottom: 16px; }
+        .modal .field { margin-bottom: 10px; font-size: 13px; }
+        .modal .field b { display: inline-block; width: 140px; color: #555; }
+        .modal .narrative {
+            margin-top: 16px; padding: 14px; background: #f5f5f5; border-radius: 6px;
+            font-size: 13px; white-space: pre-wrap; line-height: 1.5;
+        }
+        .modal .close-btn {
+            margin-top: 20px; padding: 8px 16px; border: none; background: #111; color: white;
+            border-radius: 6px; cursor: pointer; font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Adverse Event Case Queue</h1>
+<table id="caseTable">
+    <thead>
+    <tr>
+        <th>Case ID</th>
+        <th>Drug</th>
+        <th>Event</th>
+        <th>Seriousness</th>
+        <th>Routing</th>
+        <th>Status</th>
+    </tr>
+    </thead>
+    <tbody id="caseBody"></tbody>
+</table>
+
+<div class="overlay" id="overlay">
+    <div class="modal" id="modalContent"></div>
+</div>
+
+<script>
+    async function loadCases() {
+        const res = await fetch('/cases');
+        const cases = await res.json();
+        const tbody = document.getElementById('caseBody');
+        tbody.innerHTML = '';
+
+        cases.forEach(c => {
+            const badgeClass = c.Seriousness === 'Life-threatening' ? 'life'
+                : c.Seriousness === 'Serious' ? 'serious' : 'non';
+
+            const row = document.createElement('tr');
+            row.className = 'case-row';
+            row.innerHTML = `
+      <td>${c.CaseID}</td>
+      <td>${c.SuspectDrug}</td>
+      <td>${c.EventDescription}</td>
+      <td><span class="badge ${badgeClass}">${c.Seriousness}</span></td>
+      <td>${c.RoutingLane}</td>
+      <td onclick="event.stopPropagation()">
+        <select onchange="updateStatus('${c.CaseID}', this.value)">
+          <option value="pending" ${c.Status === 'pending' ? 'selected' : ''}>Pending</option>
+          <option value="reviewed" ${c.Status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+          <option value="closed" ${c.Status === 'closed' ? 'selected' : ''}>Closed</option>
+        </select>
+      </td>
+    `;
+            row.addEventListener('click', () => openCaseDetail(c.CaseID));
+            tbody.appendChild(row);
+        });
+    }
+
+    async function openCaseDetail(caseId) {
+        const res = await fetch(`/cases/${caseId}`);
+        const c = await res.json();
+
+        const badgeClass = c.Seriousness === 'Life-threatening' ? 'life'
+            : c.Seriousness === 'Serious' ? 'serious' : 'non';
+
+        document.getElementById('modalContent').innerHTML = `
+    <h2>${c.CaseID}</h2>
+    <div class="field"><b>Patient</b> ${c.PatientAge}${c.PatientSex}</div>
+    <div class="field"><b>Suspect drug</b> ${c.SuspectDrug} ${c.Dose}</div>
+    <div class="field"><b>Event</b> ${c.EventDescription}</div>
+    <div class="field"><b>Onset</b> ${c.OnsetDate}</div>
+    <div class="field"><b>Outcome</b> ${c.Outcome}</div>
+    <div class="field"><b>Reporter</b> ${c.Reporter}</div>
+    <div class="field"><b>Seriousness</b> <span class="badge ${badgeClass}">${c.Seriousness}</span></div>
+    <div class="field"><b>Criteria met</b> ${c.CriteriaMet}</div>
+    <div class="field"><b>Routing</b> ${c.RoutingLane}</div>
+    <div class="field"><b>Status</b> ${c.Status}</div>
+    <div class="narrative">${c.RawNarrative}</div>
+    <button class="close-btn" onclick="closeModal()">Close</button>
+  `;
+        document.getElementById('overlay').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('overlay').classList.remove('active');
+    }
+
+    document.getElementById('overlay').addEventListener('click', (e) => {
+        if (e.target.id === 'overlay') closeModal();
+    });
+
+    async function updateStatus(caseId, status) {
+        await fetch(`/cases/${caseId}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+        loadCases();
+    }
+
+    loadCases();
+</script>
+
+</body>
+</html>
