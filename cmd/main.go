@@ -9,6 +9,7 @@ import (
 	"github.com/RishabhWDB/Adverse-Event-Intake-Agent-v1/internal/classifier"
 	"github.com/RishabhWDB/Adverse-Event-Intake-Agent-v1/internal/extractor"
 	"github.com/RishabhWDB/Adverse-Event-Intake-Agent-v1/internal/intake"
+	"github.com/RishabhWDB/Adverse-Event-Intake-Agent-v1/internal/router"
 	"github.com/RishabhWDB/Adverse-Event-Intake-Agent-v1/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -40,7 +41,8 @@ func processNewEmails(pool *pgxpool.Pool) {
 			continue
 		}
 
-		result := classifier.Classify(caseData, narrative)
+		classResult := classifier.Classify(caseData.EventDescription, caseData.Outcome, narrative)
+		routingLane := router.AssignLane(classResult.Seriousness)
 
 		caseID := fmt.Sprintf("AE-%d", time.Now().UnixNano())
 		newCase := store.Case{
@@ -53,9 +55,9 @@ func processNewEmails(pool *pgxpool.Pool) {
 			OnsetDate:        caseData.OnsetDate,
 			Outcome:          caseData.Outcome,
 			Reporter:         caseData.Reporter,
-			Seriousness:      result.Seriousness,
-			CriteriaMet:      result.CriteriaMet,
-			RoutingLane:      result.RoutingLane,
+			Seriousness:      classResult.Seriousness,
+			CriteriaMet:      classResult.CriteriaMet,
+			RoutingLane:      routingLane,
 			Status:           "pending",
 			RawNarrative:     narrative,
 		}
