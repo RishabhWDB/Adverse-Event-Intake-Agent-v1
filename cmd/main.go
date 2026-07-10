@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/RishabhWDB/Adverse-Event-Intake-Agent-v1/internal/intake"
 	"github.com/RishabhWDB/Adverse-Event-Intake-Agent-v1/internal/router"
 	"github.com/RishabhWDB/Adverse-Event-Intake-Agent-v1/internal/store"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -44,7 +44,7 @@ func processNewEmails(pool *pgxpool.Pool) {
 		classResult := classifier.Classify(caseData.EventDescription, caseData.Outcome, narrative)
 		routingLane := router.AssignLane(classResult.Seriousness)
 
-		caseID := fmt.Sprintf("AE-%d", time.Now().UnixNano())
+		caseID := "AE-" + uuid.New().String()[:8]
 		newCase := store.Case{
 			CaseID:           caseID,
 			PatientAge:       caseData.PatientAge,
